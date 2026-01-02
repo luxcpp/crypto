@@ -1,0 +1,8 @@
+/Users/z/work/luxcpp/crypto/build/CMakeFiles/bls_metal_shaders.dir
+/Users/z/work/luxcpp/crypto/build/CMakeFiles/lux-crypto.dir
+/Users/z/work/luxcpp/crypto/build/CMakeFiles/edit_cache.dir
+/Users/z/work/luxcpp/crypto/build/CMakeFiles/rebuild_cache.dir
+/Users/z/work/luxcpp/crypto/build/CMakeFiles/list_install_components.dir
+/Users/z/work/luxcpp/crypto/build/CMakeFiles/install.dir
+/Users/z/work/luxcpp/crypto/build/CMakeFiles/install/local.dir
+/Users/z/work/luxcpp/crypto/build/CMakeFiles/install/strip.dir

@@ -1,0 +1,4 @@
+# Hashes of file build rules.
+dd8fc3b53636f476ffe0856cdd40deaa CMakeFiles/bls_metal_shaders
+4b37f5fed135154386ecd813778a2ee3 bls12_381.air
+4ae81da21919f3f683e8fcf6f1d0eced bls12_381.metallib
