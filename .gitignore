@@ -4,3 +4,9 @@ build/
 *.so
 *.a
 .DS_Store
+
+# AI assistant files (keep only LLM.md)
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+QWEN.md
