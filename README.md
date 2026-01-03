@@ -39,8 +39,9 @@ See [github.com/luxfi/crypto](https://github.com/luxfi/crypto) for Go bindings.
 
 ## Documentation
 
-- [API Reference](https://crypto.lux.network)
-- [Library Contract](https://github.com/luxcpp/crypto/blob/main/cmake/LuxLibrary.cmake)
+- [Full Documentation](https://luxfi.github.io/crypto/docs/cpp-libraries)
+- [GPU Acceleration](https://luxfi.github.io/crypto/docs/gpu-acceleration)
+- [Post-Quantum Crypto](https://luxfi.github.io/crypto/docs/post-quantum)
 
 ## License
 
