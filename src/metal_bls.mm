@@ -71,11 +71,20 @@ extern "C" MetalBLSContext* metal_bls_init(void) {
         NSError* error = nil;
 
         // Try loading pre-compiled metallib first
-        NSString* libPath = [[NSBundle mainBundle] pathForResource:@"bls12_381"
-                                                            ofType:@"metallib"];
-        if (libPath) {
-            NSURL* libURL = [NSURL fileURLWithPath:libPath];
-            ctx->library = [ctx->device newLibraryWithURL:libURL error:&error];
+        // Check standard install locations (unified lux_crypto.metallib or legacy bls12_381.metallib)
+        NSArray* metallibPaths = @[
+            @"/usr/local/share/lux/crypto/lux_crypto.metallib",
+            @"/usr/local/share/lux/crypto/bls12_381.metallib",
+            [[NSBundle mainBundle] pathForResource:@"lux_crypto" ofType:@"metallib"] ?: @"",
+            [[NSBundle mainBundle] pathForResource:@"bls12_381" ofType:@"metallib"] ?: @""
+        ];
+
+        for (NSString* libPath in metallibPaths) {
+            if (libPath.length > 0 && [[NSFileManager defaultManager] fileExistsAtPath:libPath]) {
+                NSURL* libURL = [NSURL fileURLWithPath:libPath];
+                ctx->library = [ctx->device newLibraryWithURL:libURL error:&error];
+                if (ctx->library) break;
+            }
         }
 
         // Fall back to compiling from source at runtime

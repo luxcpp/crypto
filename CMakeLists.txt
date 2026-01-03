@@ -37,41 +37,112 @@ option(WITH_GPU "Build with GPU acceleration via luxcpp/gpu (MLX)" OFF)
 option(WITH_METAL "Build with Metal compute shaders for BLS12-381" ON)
 
 # =============================================================================
-# Metal BLS12-381 Shader Compilation (macOS)
+# Metal Compute Shader Compilation (macOS)
 # =============================================================================
+# Compiles Metal shaders into two separate metallibs:
+#
+# lux_crypto.metallib (classical cryptography):
+#   - bls12_381.metal: BLS12-381 signatures, MSM, batch verify
+#   - blake3.metal: BLAKE3 hash (batch)
+#   - kzg.metal: KZG polynomial commitments (EIP-4844)
+#
+# lux_zk.metallib (zero-knowledge operations):
+#   - bn254.metal: BN254 pairing operations
+#   - goldilocks.metal: Goldilocks field for STARK
+#   - poseidon.metal: Poseidon hash (Goldilocks)
+#   - poseidon2_bn254.metal: Poseidon2 hash (BN254/Fr)
+#   - msm.metal: Multi-scalar multiplication
 
 set(METAL_RESOURCES)
 if(APPLE AND WITH_METAL)
-    message(STATUS "Enabling Metal BLS12-381 compute shaders")
+    message(STATUS "Enabling Metal compute shaders")
 
     find_program(XCRUN xcrun)
     if(XCRUN)
-        set(METAL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}/src/metal/bls12_381.metal")
-        set(METAL_AIR "${CMAKE_CURRENT_BINARY_DIR}/bls12_381.air")
-        set(METAL_LIB "${CMAKE_CURRENT_BINARY_DIR}/bls12_381.metallib")
+        # Classical crypto shaders (lux_crypto.metallib)
+        set(CRYPTO_SHADERS
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/metal/bls12_381.metal"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/metal/blake3.metal"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/metal/kzg.metal"
+        )
 
-        if(EXISTS "${METAL_SHADER}")
-            # Compile .metal -> .air
+        # ZK-specific shaders (lux_zk.metallib)
+        set(ZK_SHADERS
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/metal/bn254.metal"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/metal/goldilocks.metal"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/metal/poseidon.metal"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/metal/poseidon2_bn254.metal"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/metal/msm.metal"
+        )
+
+        set(CRYPTO_AIR_FILES)
+        set(ZK_AIR_FILES)
+        set(CRYPTO_LIB "${CMAKE_CURRENT_BINARY_DIR}/lux_crypto.metallib")
+        set(ZK_LIB "${CMAKE_CURRENT_BINARY_DIR}/lux_zk.metallib")
+
+        # Helper function to compile shaders
+        function(compile_metal_shaders SHADER_LIST AIR_LIST_VAR PREFIX)
+            set(AIR_FILES)
+            foreach(SHADER ${${SHADER_LIST}})
+                if(EXISTS "${SHADER}")
+                    get_filename_component(SHADER_NAME ${SHADER} NAME_WE)
+                    set(AIR_FILE "${CMAKE_CURRENT_BINARY_DIR}/${SHADER_NAME}.air")
+                    list(APPEND AIR_FILES ${AIR_FILE})
+
+                    add_custom_command(
+                        OUTPUT ${AIR_FILE}
+                        COMMAND ${XCRUN} -sdk macosx metal -c ${SHADER} -o ${AIR_FILE}
+                        DEPENDS ${SHADER}
+                        COMMENT "Compiling Metal shader [${PREFIX}]: ${SHADER_NAME}.metal"
+                    )
+                    message(STATUS "  [${PREFIX}] ${SHADER_NAME}.metal")
+                else()
+                    message(WARNING "Metal shader not found: ${SHADER}")
+                endif()
+            endforeach()
+            set(${AIR_LIST_VAR} ${AIR_FILES} PARENT_SCOPE)
+        endfunction()
+
+        # Compile crypto shaders
+        message(STATUS "Building lux_crypto.metallib (classical crypto):")
+        compile_metal_shaders(CRYPTO_SHADERS CRYPTO_AIR_FILES "crypto")
+
+        # Compile ZK shaders
+        message(STATUS "Building lux_zk.metallib (ZK operations):")
+        compile_metal_shaders(ZK_SHADERS ZK_AIR_FILES "zk")
+
+        # Link crypto .air files -> lux_crypto.metallib
+        if(CRYPTO_AIR_FILES)
             add_custom_command(
-                OUTPUT ${METAL_AIR}
-                COMMAND ${XCRUN} -sdk macosx metal -c ${METAL_SHADER} -o ${METAL_AIR}
-                DEPENDS ${METAL_SHADER}
-                COMMENT "Compiling Metal shader: bls12_381.metal"
+                OUTPUT ${CRYPTO_LIB}
+                COMMAND ${XCRUN} -sdk macosx metallib ${CRYPTO_AIR_FILES} -o ${CRYPTO_LIB}
+                DEPENDS ${CRYPTO_AIR_FILES}
+                COMMENT "Linking Metal library: lux_crypto.metallib"
             )
+        endif()
 
-            # Link .air -> .metallib
+        # Link ZK .air files -> lux_zk.metallib
+        if(ZK_AIR_FILES)
             add_custom_command(
-                OUTPUT ${METAL_LIB}
-                COMMAND ${XCRUN} -sdk macosx metallib ${METAL_AIR} -o ${METAL_LIB}
-                DEPENDS ${METAL_AIR}
-                COMMENT "Linking Metal library: bls12_381.metallib"
+                OUTPUT ${ZK_LIB}
+                COMMAND ${XCRUN} -sdk macosx metallib ${ZK_AIR_FILES} -o ${ZK_LIB}
+                DEPENDS ${ZK_AIR_FILES}
+                COMMENT "Linking Metal library: lux_zk.metallib"
             )
+        endif()
 
-            add_custom_target(bls_metal_shaders DEPENDS ${METAL_LIB})
-            set(METAL_RESOURCES ${METAL_LIB})
-            message(STATUS "Metal shader: ${METAL_SHADER}")
-        else()
-            message(WARNING "Metal shader not found: ${METAL_SHADER}")
+        # Create target for both metallibs
+        set(ALL_METALLIBS)
+        if(CRYPTO_AIR_FILES)
+            list(APPEND ALL_METALLIBS ${CRYPTO_LIB})
+        endif()
+        if(ZK_AIR_FILES)
+            list(APPEND ALL_METALLIBS ${ZK_LIB})
+        endif()
+
+        if(ALL_METALLIBS)
+            add_custom_target(metal_shaders DEPENDS ${ALL_METALLIBS})
+            set(METAL_RESOURCES ${ALL_METALLIBS})
         endif()
     else()
         message(WARNING "xcrun not found, Metal shaders will be compiled at runtime")
@@ -134,8 +205,8 @@ lux_add_library(
 set(TARGET_NAME "lux-crypto")
 
 # Add dependency on Metal shader compilation
-if(TARGET bls_metal_shaders)
-    add_dependencies(${TARGET_NAME} bls_metal_shaders)
+if(TARGET metal_shaders)
+    add_dependencies(${TARGET_NAME} metal_shaders)
 endif()
 
 # Compile definitions
